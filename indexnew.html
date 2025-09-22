@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SportsHD - Canlı Yayın</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .ticker-scroll {
+            animation: scroll-left 60s linear infinite;
+        }
+        
+        @keyframes scroll-left {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        .league-item {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        @keyframes slideInDown {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .clock-flip {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        
+        .clock-flip.flipping {
+            transform: rotateX(90deg);
+        }
+        
+        @keyframes flipIn {
+            0% { 
+                transform: rotateX(-90deg);
+                opacity: 0;
+            }
+            50% { 
+                transform: rotateX(0deg);
+                opacity: 0.5;
+            }
+            100% { 
+                transform: rotateX(0deg);
+                opacity: 1;
+            }
+        }
+        
+        .flip-animation {
+            animation: flipIn 0.8s ease-out;
+        }
+        
+        .manset-gradient {
+            background: linear-gradient(to right, #ffffff 0%, #ffffff 0.8%, #00612A 0.8%, #00612A 100%);
+        }
+        
+        .league-fade-out {
+            opacity: 1;
+        }
+
+        .league-fade-in {
+            opacity: 1;
+        }
+        
+    </style>
+</head>
+<body class="bg-black text-white overflow-hidden h-screen">
+    <div class="h-screen w-screen flex">
+        <!-- Left Section (77.5%) -->
+        <div class="w-[77.5%] flex flex-col">
+            <!-- Video Area -->
+            <div class="flex-[1.3] bg-black flex items-center justify-center">
+                <span class="text-white font-bold">VIDEO ALANI</span>
+            </div>
+            
+            <!-- Manşet -->
+            <div class="h-20 manset-gradient flex items-center text-left px-14">
+                <span class="text-white font-bold text-4xl text-left">Kocaelispor bu sezon gösterdiği performansla ligde üst sıralarda yer alıyor</span>
+            </div>
+            
+            <!-- Alt Manşet -->
+            <div class="h-[42.67px] flex items-center pl-4" style="background-color: #1B1C14;">
+                <span class="text-white font-bold text-2xl ml-10">Kocaelispor taraftarları takımlarının başarısından memnun</span>
+            </div>
+            
+            <!-- Ticker -->
+            <div class="h-[42.67px] flex items-center overflow-hidden" style="background-color: #00612A;">
+                <div class="ticker-scroll whitespace-nowrap">
+                    <span class="text-white font-bold text-2xl">Kocaelispor, Süper Lig'de önemli bir başarı gösteriyor</span>
+                    <span class="text-white mx-4">■</span>
+                    <span class="text-white font-bold text-2xl">Yerel takım taraftarlarını gururlandırıyor</span>
+                    <span class="text-white mx-4">■</span>
+                    <span class="text-white font-bold text-2xl">Kocaeli Stadyumu'nda heyecan dorukta</span>
+                    <span class="text-white mx-4">■</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Section (22.5%) -->
+        <div class="w-[22.5%] flex flex-col">
+            <!-- Toggle Buttons -->
+            <div class="bg-gray-900 p-2 flex gap-1">
+                <button onclick="showLeagueTable()" id="league-btn" class="flex-1 text-white text-xs py-1 px-2 rounded transition-colors font-medium" style="background-color: #00612A;">
+                    LİG TABLOSU
+                </button>
+                <button onclick="showFixtures()" id="fixtures-btn" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white text-xs py-1 px-2 rounded transition-colors font-medium">
+                    FİKSTÜR
+                </button>
+                <button onclick="showMatchDetails()" id="match-details-btn" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white text-xs py-1 px-2 rounded transition-colors font-medium">
+                    MAÇ DETAYI
+                </button>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="flex-[1.1] px-1 py-1 overflow-y-auto" id="sidebar-content" style="background-color: #1B1C14;">
+                <div id="league-table-container" class="mt-2 mr-6 ml-2">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            
+            <!-- Alt Kısım -->
+            <div class="h-[165px] flex flex-col items-center px-6 pt-2 pb-8" style="background-color: #1B1C14;">
+                <!-- Clock Section -->
+                <div class="flex items-center space-x-6 mt-2">
+                    <span id="clock-time" class="text-white font-extralight text-6xl clock-flip">15:45</span>
+                    <span id="timezone-label" class="text-white font-light text-2xl opacity-75 w-24 text-center clock-flip">GMT</span>
+                </div>
+                
+                <!-- Weather Section -->
+                <div class="flex items-center space-x-6 mt-1">
+                    <div id="weather-icon" class="text-2xl">⛅</div>
+                    <span id="weather-city" class="text-white font-light text-lg w-20 text-center">İSTANBUL</span>
+                    <span id="weather-temp" class="text-white font-light text-lg">24°C</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        
+        // Team Name Cleaner - Include external JS file functionality
+        const TEAM_NAME_MAPPINGS = {
+            // Süper Lig Takımları (sen editleyeceksin - şu an aynı isimler)
+            "KOCAELİSPOR": "KOCAELİSPOR",
+            "GALATASARAY": "GALATASARAY", 
+            "FENERBAHÇE": "FENERBAHÇE",
+            "BEŞİKTAŞ": "BEŞİKTAŞ",
+            "TRABZONSPOR": "TRABZONSPOR",
+            "BAŞAKŞEHİR": "BAŞAKŞEHİR",
+            "ALANYASPOR": "ALANYASPOR",
+            "KAYSERİSPOR": "KAYSERİSPOR",
+            "SİVASSPOR": "SİVASSPOR",
+            "ANTALYASPOR": "ANTALYASPOR",
+            "KONYASPOR": "KONYASPOR",
+            "KASIMPAŞA": "KASIMPAŞA",
+            "GAZİANTEPSPOR": "GAZİANTEPSPOR",
+            "FATİH KARAGÜMRÜK": "FATİH KARAGÜMRÜK",
+            "RİZESPOR": "RİZESPOR",
+            "GÖZTEPE": "GÖZTEPE",
+            "SAMSUNSPOR": "SAMSUNSPOR",
+            "HATAYSPOR": "HATAYSPOR",
+            "ANKARAGÜCÜ": "ANKARAGÜCÜ",
+            "İSTANBULSPOR": "İSTANBULSPOR",
+            "GİRESUNSPOR": "GİRESUNSPOR",
+            "ADANA DEMİRSPOR": "ADANA DEMİRSPOR",
+            "PENDİKSPOR": "PENDİKSPOR",
+            "GENÇLERBIRLIĞI": "GENÇLERBIRLIĞI"
+        };
+
+        function cleanTeamName(teamName) {
+            if (!teamName) return teamName;
+
+            let cleanName = teamName.trim();
+
+            // A.Ş. kaldır
+            cleanName = cleanName.replace(/\sA\.Ş\.?$/i, '');
+
+            // Ön ekler kaldır
+            cleanName = cleanName.replace(/^HESAP\.COM\s+/i, '');
+            cleanName = cleanName.replace(/^CORENDON\s+/i, '');
+            cleanName = cleanName.replace(/^TÜMOSAN\s+/i, '');
+            cleanName = cleanName.replace(/^ÇAYKUR\s+/i, '');
+            cleanName = cleanName.replace(/^ZECORNER\s+/i, '');
+            cleanName = cleanName.replace(/^İKAS\s+/i, '');
+            cleanName = cleanName.replace(/^MISIRLI\.COM\.TR\s+/i, '');
+            cleanName = cleanName.replace(/^ATKO GRUP\s+/i, '');
+            cleanName = cleanName.replace(/^ÖZBELSAN\s+/i, '');
+            cleanName = cleanName.replace(/^EMİNEVİM\s+/i, '');
+            cleanName = cleanName.replace(/^ATAKAŞ\s+/i, '');
+            cleanName = cleanName.replace(/^SMS GRUP\s+/i, '');
+            cleanName = cleanName.replace(/^KUZEYBORU 68\s+/i, '');
+            cleanName = cleanName.replace(/^ARKENT\s+/i, '');
+            cleanName = cleanName.replace(/^GRANNY'S WAFFLES\s+/i, '');
+            cleanName = cleanName.replace(/^TURKISH OIL YENİ\s+/i, '');
+            cleanName = cleanName.replace(/^KIZILKAYA TARIM\s+/i, '');
+            cleanName = cleanName.replace(/^SULTAN SU\s+/i, '');
+            cleanName = cleanName.replace(/^SEZA ÇİMENTO\s+/i, '');
+            cleanName = cleanName.replace(/^MERKÜR JET\s+/i, '');
+            cleanName = cleanName.replace(/^GMG\s+/i, '');
+            cleanName = cleanName.replace(/^ANAGOLD\s+/i, '');
+            cleanName = cleanName.replace(/^ASTOR ENERJİ\s+/i, '');
+            cleanName = cleanName.replace(/^KÜÇÜKÇEKMECE\s+/i, '');
+            cleanName = cleanName.replace(/^ETİ GÜBRE MAZIDAĞİ\s+/i, '');
+            cleanName = cleanName.replace(/^EJDEROĞLU\s+/i, '');
+            cleanName = cleanName.replace(/^HACETTEPE A\.Ş\. TÜRK METAL 1963\s+/i, '');
+            cleanName = cleanName.replace(/^MDGRUP\s+/i, '');
+            cleanName = cleanName.replace(/^SUVERMEZ\s+/i, '');
+            cleanName = cleanName.replace(/^DÜZCE CAM\s+/i, '');
+            cleanName = cleanName.replace(/^OKTAŞ\s+/i, '');
+            cleanName = cleanName.replace(/^NEV SAĞLIK GRUBU\s+/i, '');
+            cleanName = cleanName.replace(/^İSMAİL DEMİREL\s+/i, '');
+
+            // Uzun isimler kısaltma
+            cleanName = cleanName.replace(/^GAZİANTEP FUTBOL KULÜBÜ$/i, 'GAZİANTEP FK');
+            cleanName = cleanName.replace(/^RAMS BAŞAKŞEHİR FUTBOL KULÜBÜ$/i, 'BAŞAKŞEHİR FK');
+            cleanName = cleanName.replace(/^SİPAY BODRUM FK$/i, 'BODRUM FK');
+            cleanName = cleanName.replace(/^AMED SPORTİF FAALİYETLER$/i, 'AMED');
+            cleanName = cleanName.replace(/^SERİK SPOR FUTBOL$/i, 'SERİK SPOR');
+            cleanName = cleanName.replace(/^İMAJ ALTYAPI VAN SPOR FUTBOL KULÜBÜ$/i, 'VAN SPOR FK');
+            cleanName = cleanName.replace(/^EMRE GÖKDEMİR İNŞAAT ANKARA KEÇİÖRENGÜCÜ$/i, 'ANKARA KEÇİÖRENGÜCÜ');
+            cleanName = cleanName.replace(/^ALAGÖZ HOLDİNG IĞDIR FK$/i, 'IĞDIR FK');
+            cleanName = cleanName.replace(/^SAKARYASPOR$/i, 'SAKARYASPOR FK');
+            cleanName = cleanName.replace(/^MANİSA FUTBOL KULÜBÜ$/i, 'MANİSA FK');
+            cleanName = cleanName.replace(/^GÜZİDE GEBZE SPOR KULÜBÜ$/i, 'GEBZE SPOR KULÜBÜ');
+            cleanName = cleanName.replace(/^ISBAŞ ISPARTA 32 SPOR KULÜBÜ$/i, 'ISPARTA 32 SPOR KULÜBÜ');
+            cleanName = cleanName.replace(/^MENEMEN FUTBOL KULÜBÜ$/i, 'MENEMEN FK');
+            cleanName = cleanName.replace(/^MUŞ SPOR KULÜBÜ$/i, 'MUŞ SPOR');
+            cleanName = cleanName.replace(/^AKEDAŞ KAHRAMANMARAŞ İSTİKLAL SPOR$/i, 'KAHRAMANMARAŞ İSTİKLAL SPOR');
+            cleanName = cleanName.replace(/^AKSARAY BELEDİYE SPOR$/i, 'AKSARAY BELEDİYE SPOR');
+            cleanName = cleanName.replace(/^ALİAĞA FUTBOL$/i, 'ALİAĞA FK');
+            cleanName = cleanName.replace(/^KCT 1461 TRABZON FK$/i, '1461 TRABZON FK');
+            cleanName = cleanName.replace(/^ARNAVUTKÖY BELEDİYESİ FUTBOL SK$/i, 'ARNAVUTKÖY BELEDİYESİ FK');
+            cleanName = cleanName.replace(/^MERSİN İDMANYURDU FUTBOL$/i, 'MERSİN İDMANYURDU');
+            cleanName = cleanName.replace(/^ADANASPOR$/i, 'ADANASPOR FK');
+            cleanName = cleanName.replace(/^BATMAN PETROL SPOR$/i, 'BATMAN PETROL SPOR');
+            cleanName = cleanName.replace(/^ŞANLIURFASPOR$/i, 'ŞANLIURFASPOR');
+            cleanName = cleanName.replace(/^İNEGÖLSPOR$/i, 'İNEGÖLSPOR');
+            cleanName = cleanName.replace(/^ELAZIĞSPOR$/i, 'ELAZIĞSPOR');
+            cleanName = cleanName.replace(/^ERBAASPOR$/i, 'ERBAASPOR');
+            cleanName = cleanName.replace(/^İSKENDERUNSPOR$/i, 'İSKENDERUNSPOR');
+            cleanName = cleanName.replace(/^KARACABEY BELEDİYE SPOR$/i, 'KARACABEY BELEDİYE SPOR');
+            cleanName = cleanName.replace(/^KASTAMONUSPOR$/i, 'KASTAMONUSPOR');
+            cleanName = cleanName.replace(/^ADANA 01 FUTBOL KULÜBÜ SK$/i, 'ADANA 01 FK');
+            cleanName = cleanName.replace(/^MUĞLASPOR KULÜBÜ$/i, 'MUĞLASPOR');
+            cleanName = cleanName.replace(/^24ERZİNCANSPOR$/i, '24ERZİNCANSPOR');
+            cleanName = cleanName.replace(/^BEYOĞLU YENİ ÇARŞI SPOR FAALİYETLERİ$/i, 'BEYOĞLU YENİ ÇARŞI SPOR');
+            cleanName = cleanName.replace(/^BEYKOZ ANADOLU SPOR$/i, 'BEYKOZ ANADOLU SPOR');
+            cleanName = cleanName.replace(/^MKE ANKARAGÜCÜ$/i, 'ANKARAGÜCÜ');
+            cleanName = cleanName.replace(/^KEPEZ SPOR FUTBOL$/i, 'KEPEZ SPOR');
+            cleanName = cleanName.replace(/^KARAMAN FUTBOL KULÜBÜ$/i, 'KARAMAN FK');
+            cleanName = cleanName.replace(/^GALATA SPOR KULÜBÜ$/i, 'GALATA SPOR');
+            cleanName = cleanName.replace(/^BURSA YILDIRIM SPOR KULÜBÜ$/i, 'BURSA YILDIRIM SPOR');
+            cleanName = cleanName.replace(/^YALOVA FK 77 SPOR KULÜBÜ$/i, 'YALOVA FK 77 SPOR');
+            cleanName = cleanName.replace(/^ETİMESGUT SPOR KULÜBÜ$/i, 'ETİMESGUT SPOR');
+            cleanName = cleanName.replace(/^ÇANKAYA SPOR KULÜBÜ$/i, 'ÇANKAYA SPOR');
+            cleanName = cleanName.replace(/^BEYKOZ İSHAKLI SPOR FAALİYETLERİ$/i, 'BEYKOZ İSHAKLI SPOR');
+            cleanName = cleanName.replace(/^SİNOP SPOR$/i, 'KÜÇÜKÇEKMECE SİNOP SPOR');
+            cleanName = cleanName.replace(/^İNEGÖL KAFKAS SPOR KULÜBÜ$/i, 'KAFKAS SPOR');
+            cleanName = cleanName.replace(/^POLATLI 1926 SPOR KULÜBÜ$/i, 'POLATLI 1926 SPOR');
+            cleanName = cleanName.replace(/^KESTEL ÇİLEK SPOR KULÜBÜ$/i, 'KESTEL ÇİLEK SPOR');
+            cleanName = cleanName.replace(/^BURSA NİLÜFER FUTBOL$/i, 'BURSA NİLÜFER');
+            cleanName = cleanName.replace(/^İNKILAP FUTBOL SPOR KULÜBÜ$/i, 'İNKILAP FUTBOL SPOR');
+            cleanName = cleanName.replace(/^KİLİS 1984$/i, 'KİLİS 1984');
+            cleanName = cleanName.replace(/^FOSFAT SPOR$/i, 'FOSFAT SPOR');
+            cleanName = cleanName.replace(/^ERCİYES 38 FUTBOL SPOR KULÜBÜ$/i, 'ERCİYES 38 FUTBOL SPOR');
+            cleanName = cleanName.replace(/^MALATYA YEŞİLYURT SPOR KULÜBÜ$/i, 'MALATYA YEŞİLYURT SPOR');
+            cleanName = cleanName.replace(/^KIRIKKALE FK SPOR KULÜBÜ$/i, 'KIRIKKALE FK');
+            cleanName = cleanName.replace(/^KIRŞEHİR FUTBOL SPOR KULÜBÜ$/i, 'KIRŞEHİR FUTBOL SPOR');
+            cleanName = cleanName.replace(/^SPOR$/i, 'HACETTEPE 1963 SPOR');
+            cleanName = cleanName.replace(/^AĞRI 1970 SPOR KULÜBÜ$/i, 'AĞRI 1970 SPOR');
+            cleanName = cleanName.replace(/^OSMANİYESPOR$/i, 'OSMANİYESPOR');
+            cleanName = cleanName.replace(/^DİYARBEKİR SPOR$/i, 'DİYARBEKİR SPOR');
+            cleanName = cleanName.replace(/^KAPADOKYA SPOR$/i, 'KAPADOKYA SPOR');
+            cleanName = cleanName.replace(/^KAHRAMANMARAŞ SPOR$/i, 'KAHRAMANMARAŞ SPOR');
+            cleanName = cleanName.replace(/^TOKAT BELEDİYE SPOR KULÜBÜ$/i, 'TOKAT BELEDİYE SPOR');
+            cleanName = cleanName.replace(/^DÜZCESPOR$/i, 'DÜZCESPOR');
+            cleanName = cleanName.replace(/^KDZ\.EREĞLİ BELEDİYE SPOR$/i, 'EREĞLİ BELEDİYE SPOR');
+            cleanName = cleanName.replace(/^ZONGULDAK SPOR FUTBOL KULÜBÜ$/i, 'ZONGULDAK SPOR');
+            cleanName = cleanName.replace(/^ORDUSPOR 1967$/i, 'ORDUSPOR 1967');
+            cleanName = cleanName.replace(/^UŞAK SPOR$/i, 'OKTAŞ UŞAK SPOR');
+            cleanName = cleanName.replace(/^DENİZLİ İDMANYURDU GÜRELLER SPOR KULÜBÜ$/i, 'DENİZLİ İDMANYURDU GÜRELLER SPOR');
+            cleanName = cleanName.replace(/^KÜTAHYASPOR FUTBOL SPOR KULÜBÜ$/i, 'KÜTAHYASPOR');
+            cleanName = cleanName.replace(/^ESKİŞEHİRSPOR KULÜBÜ$/i, 'ESKİŞEHİRSPOR');
+            cleanName = cleanName.replace(/^TİRE 2021 FUTBOL KULÜBÜ$/i, 'TİRE 2021 FK');
+            cleanName = cleanName.replace(/^SÖKE 1970 SPOR KULÜBÜ$/i, 'SÖKE 1970 SPOR');
+            cleanName = cleanName.replace(/^İZMİR ÇORUHLU FUTBOL KULÜBÜ$/i, 'İZMİR ÇORUHLU FK');
+            cleanName = cleanName.replace(/^BORNOVA 1877 SPORTİF YATIRIMLAR$/i, 'BORNOVA 1877');
+            cleanName = cleanName.replace(/^ALANYA 1221 FUTBOL SPOR KULÜBÜ$/i, 'ALANYA 1221 FK');
+            cleanName = cleanName.replace(/^BALIKESİRSPOR$/i, 'BALIKESİRSPOR');
+            cleanName = cleanName.replace(/^ESKİŞEHİR ANADOLU SPOR FAALİYETLERİ$/i, 'ESKİŞEHİR ANADOLU SPOR');
+            cleanName = cleanName.replace(/^NAZİLLİ SPOR$/i, 'NAZİLLİ SPOR');
+            cleanName = cleanName.replace(/^AFYONSPOR KULÜBÜ$/i, 'AFYONSPOR');
+            cleanName = cleanName.replace(/^BİTLİS 1916 FUTBOL SPOR KULÜBÜ$/i, 'BİTLİS 1916');
+            cleanName = cleanName.replace(/^BULANIK KOP SPOR\s+KULÜBÜ$/i, 'BULANIK KOP SPOR');
+            cleanName = cleanName.replace(/^DOĞUBAYAZIT FUTBOL SPOR KULÜBÜ$/i, 'DOĞUBAYAZIT');
+            cleanName = cleanName.replace(/^HAKKARİ ZAP SPOR KULÜBÜ$/i, 'HAKKARİ ZAP SPOR');
+            cleanName = cleanName.replace(/^KARAAĞAÇ SPOR KULÜBÜ$/i, 'KARAAĞAÇ SPOR');
+            cleanName = cleanName.replace(/^MURAT 2020 GENÇ SPOR KULÜBÜ$/i, 'MURAT 2020 GENÇ SPOR');
+            cleanName = cleanName.replace(/^VANGÖLÜ SPORTİF FAALİYETLER SPOR$/i, 'VANGÖLÜ SPOR');
+
+            // Son temizlik - gereksiz kelimeler
+            cleanName = cleanName.replace(/\s+FUTBOL$/i, '');
+            cleanName = cleanName.replace(/\s+SK$/i, '');
+            cleanName = cleanName.replace(/\s+SPOR KULÜBÜ$/i, '');
+            cleanName = cleanName.replace(/\s+KULÜBÜ$/i, '');
+            cleanName = cleanName.replace(/\s+FAALİYETLERİ$/i, '');
+            cleanName = cleanName.replace(/\s+FUTBOL KULÜBÜ$/i, ' FK');
+            cleanName = cleanName.replace(/\s+SPOR KULÜBÜ$/i, ' SPOR');
+
+            return cleanName.trim();
+        }
+
+        // Configuration Data
+        const LEAGUE_CONFIG = [
+            { name: "TRENDYOL SÜPER LİG", endpoint: "/live", displayName: "SÜPER LİG", priority: 1 },
+            { name: "TFF 1. LİG", endpoint: "/live/league/tff-1", displayName: "TFF 1. LİG", priority: 2 },
+            { name: "TFF 2. LİG KIRMIZI GRUP", endpoint: "/live/league/tff-2/group/1", displayName: "TFF 2. LİG KIRMIZI", priority: 3 },
+            { name: "TFF 2. LİG BEYAZ GRUP", endpoint: "/live/league/tff-2/group/2", displayName: "TFF 2. LİG BEYAZ", priority: 4 },
+            { name: "TFF 3. LİG 1. GRUP", endpoint: "/live/league/tff-3/group/1", displayName: "TFF 3. LİG 1. GRUP", priority: 5 },
+            { name: "TFF 3. LİG 2. GRUP", endpoint: "/live/league/tff-3/group/2", displayName: "TFF 3. LİG 2. GRUP", priority: 6 },
+            { name: "TFF 3. LİG 3. GRUP", endpoint: "/live/league/tff-3/group/3", displayName: "TFF 3. LİG 3. GRUP", priority: 7 },
+            { name: "TFF 3. LİG 4. GRUP", endpoint: "/live/league/tff-3/group/4", displayName: "TFF 3. LİG 4. GRUP", priority: 8 },
+            { name: "AMATÖR LİG 1. GRUP", endpoint: "/live/league/amateur/group/1", displayName: "AMATÖR 1. GRUP", priority: 9 },
+            { name: "AMATÖR LİG 2. GRUP", endpoint: "/live/league/amateur/group/2", displayName: "AMATÖR 2. GRUP", priority: 10 },
+            { name: "AMATÖR LİG 3. GRUP", endpoint: "/live/league/amateur/group/3", displayName: "AMATÖR 3. GRUP", priority: 11 },
+            { name: "AMATÖR LİG 4. GRUP", endpoint: "/live/league/amateur/group/4", displayName: "AMATÖR 4. GRUP", priority: 12 },
+            { name: "AMATÖR LİG 5. GRUP", endpoint: "/live/league/amateur/group/5", displayName: "AMATÖR 5. GRUP", priority: 13 },
+            { name: "AMATÖR LİG 6. GRUP", endpoint: "/live/league/amateur/group/6", displayName: "AMATÖR 6. GRUP", priority: 14 },
+            { name: "AMATÖR LİG 7. GRUP", endpoint: "/live/league/amateur/group/7", displayName: "AMATÖR 7. GRUP", priority: 15 },
+            { name: "AMATÖR LİG 8. GRUP", endpoint: "/live/league/amateur/group/8", displayName: "AMATÖR 8. GRUP", priority: 16 },
+            { name: "AMATÖR LİG 9. GRUP", endpoint: "/live/league/amateur/group/9", displayName: "AMATÖR 9. GRUP", priority: 17 },
+            { name: "AMATÖR LİG 10. GRUP", endpoint: "/live/league/amateur/group/10", displayName: "AMATÖR 10. GRUP", priority: 18 }
+        ];
+
+        const PLAYER_IMAGES = {
+            // Tüm oyuncu resimleri (player-config.js ile senkron)
+            "SELÇUK İNAN": "img/selcukinan.png", // Teknik Direktör
+            "ALEKSANDAR JOVANOVIC": "img/aleksandar.png", 
+            "ANFERNEE JAMAL DIJKSTEEL": "img/dijksteel.png",
+            "CAN KELEŞ": "img/cankeles.png",
+            "KAROL LINETTY": "img/linetty.png",
+            "OĞULCAN ÇAĞLAYAN": "img/ogulcan.png",
+            "RYAN ISAAC MENDES": "img/ryan.png",
+            "BRUNO PETKOVIC": "img/bruno.png",
+            "GÖKHAN DEĞİRMENCİ": "img/gokhan.png",
+            "MUHARREM CİNAN": "img/muharrem.png",
+            "AARON CHRISTOPHER BILLY ONDELE APPINDANGOYE": "img/appindangoye.png",
+            "MANUEL LUIS DA SILVA CAFUMANA": "img/cafumana.png",
+            "OLEKSANDR SYROTA": "img/syrota.png",
+            "TAYFUR BİNGÖL": "img/tayfur.png",
+            "JOSEPH NONGE BOENDE": "img/boende.png",
+            
+            // Varsayılan oyuncu resmi
+            "default_player": "img/player.png"
+        };
+
+        const TEAM_IMAGES = {
+            // Süper Lig Takımları (img klasöründeki gerçek dosyalar)
+            "KOCAELİSPOR": "img/kocaelispor.png",
+            "GALATASARAY": "img/galatasaray.png",
+            "FENERBAHÇE": "img/fenerbahce.png",
+            "BEŞİKTAŞ": "img/besiktas.png",
+            "TRABZONSPOR": "img/trabzonspor.png",
+            "BAŞAKŞEHİR": "img/basaksehir.png",
+            "ALANYASPOR": "img/alanyaspor.png",
+            "KAYSERİSPOR": "img/kayserispor.png",
+            "ANTALYASPOR": "img/antalyaspor.png",
+            "KONYASPOR": "img/konyaspor.png",
+            "KASIMPAŞA": "img/kasimpasa.png",
+            "GAZİANTEPSPOR": "img/gaziantepspor.png",
+            "FATİH KARAGÜMRÜK": "img/karagumruk.png",
+            "RİZESPOR": "img/rizespor.png",
+            "GÖZTEPE": "img/goztepe.png",
+            "SAMSUNSPOR": "img/samsunspor.png",
+            "GENÇLERBIRLIĞI": "img/genclerbirligi.png",
+            // TFF 1. Lig
+            "EYÜPSPOR": "img/eyupspor.png",
+            // Varsayılan resimler
+            "default_rival": "img/rivals.png",
+            "default_team": "img/rivals.png"
+        };
+
+        // Global variables
+        let currentViewType = 'league';
+        let currentLeagueIndex = 0;
+        let currentFixtureGroup = 0;
+        let leagueRotationInterval = null;
+        let fixtureRotationInterval = null;
+        let currentFixtures = null;
+        let selectedMatchId = null;
+        const leagueDataCache = {};
+
+        // Helper functions
+        function isKocaeli(teamName) {
+            if (!teamName) return false;
+            return teamName.toUpperCase().includes("KOCAELİ");
+        }
+
+        function getPlayerImage(playerName) {
+            if (!playerName) return PLAYER_IMAGES["default_player"];
+            const normalizedName = playerName.toUpperCase().trim();
+            return PLAYER_IMAGES[normalizedName] || PLAYER_IMAGES["default_player"];
+        }
+
+        function getTeamImage(teamName) {
+            if (!teamName) return TEAM_IMAGES["default_team"];
+            
+            // Clean the team name first
+            const cleanedName = cleanTeamName(teamName);
+            
+            // Check if it exists in our team images
+            if (TEAM_IMAGES[cleanedName]) {
+                return TEAM_IMAGES[cleanedName];
+            }
+            
+            // Special check for Kocaelispor variations
+            if (cleanedName.includes("KOCAELİ")) {
+                return TEAM_IMAGES["KOCAELİSPOR"];
+            }
+            
+            // Default to rival logo
+            return TEAM_IMAGES["default_rival"];
+        }
+
+        // API functions
+        async function fetchLeagueData(endpoint) {
+            try {
+                if (leagueDataCache[endpoint]) {
+                    return leagueDataCache[endpoint];
+                }
+                
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                const data = await response.json();
+                
+                leagueDataCache[endpoint] = data;
+                setTimeout(() => {
+                    delete leagueDataCache[endpoint];
+                }, 5 * 60 * 1000);
+                
+                return data;
+            } catch (error) {
+                console.error('Lig verisi yüklenemedi:', endpoint, error);
+                return null;
+            }
+        }
+
+        async function fetchKocaelisporFixtures() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/kocaelispor/fixtures?fill=1`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Fikstür yüklenemedi:', error);
+                return null;
+            }
+        }
+
+        async function fetchLatestLineup() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/kocaelispor/lineup/latest`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Kadro yüklenemedi:', error);
+                return null;
+            }
+        }
+
+        async function fetchMatchDetail(macId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/match/detail/${macId}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Maç detayı yüklenemedi:', error);
+                return null;
+            }
+        }
+
+        // UI functions
+        function updateButtonStyles(activeId) {
+            const buttons = ['league-btn', 'fixtures-btn', 'match-details-btn'];
+            buttons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (id === activeId) {
+                    btn.style.backgroundColor = '#00612A';
+                    btn.className = 'flex-1 text-white text-xs py-1 px-2 rounded transition-colors font-medium';
+                } else {
+                    btn.style.backgroundColor = '#1B1C14';
+                    btn.className = 'flex-1 text-white text-xs py-1 px-2 rounded transition-colors font-medium';
+                }
+            });
+        }
+
+        function stopAllRotations() {
+            if (leagueRotationInterval) {
+                clearInterval(leagueRotationInterval);
+                leagueRotationInterval = null;
+            }
+            if (fixtureRotationInterval) {
+                clearInterval(fixtureRotationInterval);
+                fixtureRotationInterval = null;
+            }
+        }
+
+        // League Table Functions
+        function showLeagueTable() {
+            currentViewType = 'league';
+            updateButtonStyles('league-btn');
+            stopAllRotations();
+            startLeagueRotation();
+        }
+
+        function startLeagueRotation() {
+            loadCurrentLeague();
+            leagueRotationInterval = setInterval(() => {
+                if (currentViewType === 'league') {
+                    rotateToNextLeague();
+                }
+            }, 5000);
+        }
+
+        async function loadCurrentLeague() {
+            const league = LEAGUE_CONFIG[currentLeagueIndex];
+            const data = await fetchLeagueData(league.endpoint);
+            
+            if (data) {
+                displayLeagueTable(data, league);
+            }
+        }
+
+        function rotateToNextLeague() {
+            currentLeagueIndex = (currentLeagueIndex + 1) % LEAGUE_CONFIG.length;
+            loadCurrentLeague();
+        }
+
+        function displayLeagueTable(data, league) {
+            const container = document.getElementById('league-table-container');
+            container.innerHTML = '';
+            
+            // League Header
+            const header = document.createElement('div');
+            header.className = 'mb-6 league-item ml-1 mr-6';
+            header.style.background = 'linear-gradient(to right, #00612A 0%, #00612A 99%, #ffffff 99%, #ffffff 100%)';
+            header.style.height = '50px';
+            header.innerHTML = `
+                <div class="flex items-center h-full">
+                    <div class="h-full flex items-center justify-center" style="width: 50px;">
+                        <img src="img/superlig-logo.png" alt="${league.displayName}" class="w-12 h-12">
+                    </div>
+                    <div class="flex-1 text-center">
+                        <span class="text-white font-bold text-base">${league.displayName}</span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(header);
+
+            // Table container
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'ml-1 mr-6';
+            
+            // Table Header
+            const tableHeader = document.createElement('div');
+            tableHeader.className = 'grid font-light text-xs league-item mb-2';
+            tableHeader.style.gridTemplateColumns = 'auto 2fr auto auto auto';
+            tableHeader.style.gap = '12px';
+            tableHeader.style.background = '#00612A';
+            tableHeader.style.height = '24px';
+            tableHeader.style.alignItems = 'center';
+            tableHeader.style.padding = '0 8px';
+            tableHeader.innerHTML = `
+                <span></span>
+                <span></span>
+                <span class="text-center w-8 text-white font-bold">O</span>
+                <span class="text-center font-bold w-8 text-white">P</span>
+                <span class="text-center font-bold w-8 text-white">A</span>
+            `;
+            tableContainer.appendChild(tableHeader);
+            
+            // Table Rows
+            const rowsContainer = document.createElement('div');
+            
+            data.forEach((team, index) => {
+                const row = document.createElement('div');
+                const isEven = (index + 1) % 2 === 0;
+                const bgColor = isEven ? '#1B1C14' : '#00612A';
+                row.className = `grid text-sm py-1 rounded px-1 league-item`;
+                row.style.backgroundColor = bgColor;
+                row.style.gridTemplateColumns = 'auto 2fr auto auto auto';
+                row.style.gap = '12px';
+                
+                const avgDisplay = team.average >= 0 ? team.average : Math.abs(team.average);
+                const teamIsKocaeli = isKocaeli(team.name);
+                const nameStyle = teamIsKocaeli ? 'color: #F2E302; font-weight: bold;' : '';
+                
+                row.innerHTML = `
+                    <span class="text-center w-8 text-white font-bold">${index + 1}</span>
+                    <span class="text-white" style="${nameStyle}">${cleanTeamName(team.name)}</span>
+                    <span class="text-center w-8 text-white">${team.played}</span>
+                    <span class="text-center font-bold w-8 text-white">${team.points}</span>
+                    <span class="text-center font-bold w-8 text-white">${avgDisplay}</span>
+                `;
+                rowsContainer.appendChild(row);
+            });
+            
+            tableContainer.appendChild(rowsContainer);
+            container.appendChild(tableContainer);
+        }
+
+        // Fixture Functions
+        function showFixtures() {
+            currentViewType = 'fixtures';
+            updateButtonStyles('fixtures-btn');
+            stopAllRotations();
+            startFixtureRotation();
+        }
+
+        function startFixtureRotation() {
+            currentFixtureGroup = 0;
+            loadFixtureGroup();
+            
+            fixtureRotationInterval = setInterval(() => {
+                if (currentViewType === 'fixtures') {
+                    rotateToNextFixtureGroup();
+                }
+            }, 4000);
+        }
+
+        async function loadFixtureGroup() {
+            if (!currentFixtures) {
+                const data = await fetchKocaelisporFixtures();
+                if (data && data.fixtures) {
+                    currentFixtures = data.fixtures.sort((a, b) => a.week - b.week);
+                }
+            }
+            
+            if (currentFixtures) {
+                displayFixtureGroup();
+            }
+        }
+
+        function rotateToNextFixtureGroup() {
+            if (!currentFixtures || currentFixtures.length === 0) {
+                return;
+            }
+
+            const totalGroups = Math.ceil(currentFixtures.length / 3);
+            currentFixtureGroup = (currentFixtureGroup + 1) % totalGroups;
+
+            displayFixtureGroup();
+        }
+
+        function displayFixtureGroup() {
+            const container = document.getElementById('league-table-container');
+            container.innerHTML = '';
+            
+            // League Header
+            const header = document.createElement('div');
+            header.className = 'flex flex-col items-center justify-center mb-4 league-item';
+            header.innerHTML = `
+                <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <img src="img/superlig-logo.png" alt="Süper Lig" class="w-12 h-12">
+                </div>
+                <div class="text-center">
+                    <span class="text-white font-bold text-lg">SÜPER LİG</span>
+                    <span class="text-gray-300 mx-3 text-lg">|</span>
+                    <span class="text-lg font-bold" style="color: #F2E302;">FİKSTÜR</span>
+                </div>
+            `;
+            container.appendChild(header);
+
+            // Separator Line
+            const separator = document.createElement('hr');
+            separator.className = 'border-gray-600 my-4 league-item';
+            container.appendChild(separator);
+
+            // Current group matches (3 matches)
+            const startIndex = currentFixtureGroup * 3;
+            const endIndex = Math.min(startIndex + 3, currentFixtures.length);
+            const currentMatches = currentFixtures.slice(startIndex, endIndex);
+
+            currentMatches.forEach((match, index) => {
+                const matchDiv = document.createElement('div');
+                matchDiv.className = 'mb-6 league-item cursor-pointer hover:bg-gray-800 p-2 rounded';
+                matchDiv.onclick = () => {
+                    selectedMatchId = match.macId;
+                    showMatchDetails();
+                };
+                
+                const homeTeamImg = getTeamImage(match.homeTeam);
+                const awayTeamImg = getTeamImage(match.awayTeam);
+                
+                matchDiv.innerHTML = `
+                    <div class="text-center mb-3">
+                        <span class="text-gray-400 font-bold text-sm">${match.week}. HAFTA</span>
+                    </div>
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="w-16 h-16 rounded-full flex items-center justify-center mr-4">
+                            <img src="${homeTeamImg}" alt="${match.homeTeam}" class="w-14 h-14 rounded-full">
+                        </div>
+                        <span class="text-gray-400 mx-4 font-bold text-lg">VS</span>
+                        <div class="w-16 h-16 rounded-full flex items-center justify-center ml-4">
+                            <img src="${awayTeamImg}" alt="${match.awayTeam}" class="w-14 h-14 rounded-full">
+                        </div>
+                    </div>
+                    <div class="flex justify-center items-center mb-2">
+                        <span class="text-white font-bold text-md text-center">${cleanTeamName(match.homeTeam)}</span>
+                        <span class="text-white mx-3">-</span>
+                        <span class="text-white font-bold text-md text-center">${cleanTeamName(match.awayTeam)}</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="font-bold text-lg" style="color: ${match.played ? '#F2E302' : '#d1d5db'}">${match.score || (match.date + ' ' + match.time) || 'TBD'}</span>
+                    </div>
+                `;
+                
+                container.appendChild(matchDiv);
+            });
+
+            // Progress indicator
+            const totalGroups = Math.ceil(currentFixtures.length / 3);
+            const progressDiv = document.createElement('div');
+            progressDiv.className = 'flex justify-center mt-4 space-x-2';
+            
+            for (let i = 0; i < totalGroups; i++) {
+                const dot = document.createElement('div');
+                dot.className = `w-2 h-2 rounded-full ${i === currentFixtureGroup ? 'bg-yellow-400' : 'bg-gray-600'}`;
+                progressDiv.appendChild(dot);
+            }
+            
+            container.appendChild(progressDiv);
+        }
+
+
+        // Match Details Functions
+        function showMatchDetails() {
+            currentViewType = 'matchdetails';
+            updateButtonStyles('match-details-btn');
+            stopAllRotations();
+            loadMatchDetailsContent();
+        }
+
+        async function loadMatchDetailsContent() {
+            const container = document.getElementById('league-table-container');
+            container.innerHTML = '<div class="text-center text-white">Yükleniyor...</div>';
+            
+            let macId = selectedMatchId;
+            if (!macId) {
+                const lineupData = await fetchLatestLineup();
+                macId = lineupData?.macId;
+            }
+            
+            if (!macId) {
+                container.innerHTML = '<div class="text-center text-red-400">Maç bulunamadı</div>';
+                return;
+            }
+
+            const data = await fetchMatchDetail(macId);
+            if (!data) {
+                container.innerHTML = '<div class="text-center text-red-400">Maç detayı yüklenemedi</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            const isKocaeliHome = data.homeTeam.toLowerCase().includes('kocaeli');
+            const kocaeliSide = isKocaeliHome ? 'home' : 'away';
+            const opponentSide = isKocaeliHome ? 'away' : 'home';
+            
+            // League Header
+            const header = document.createElement('div');
+            header.className = 'flex flex-col items-center justify-center mb-4 league-item';
+            header.innerHTML = `
+                <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                    <img src="img/superlig-logo.png" alt="Süper Lig" class="w-14 h-14">
+                </div>
+                <div class="text-center mt-2">
+                    <span class="text-white font-bold text-xl">SÜPER LİG</span>
+                    <span class="text-gray-300 mx-5 text-xl">|</span>
+                    <span class="text-xl font-bold" style="color: #F2E302;">MAÇ DETAYI</span>
+                </div>
+            `;
+            container.appendChild(header);
+
+            const separator = document.createElement('hr');
+            separator.className = 'border-gray-600 my-4 league-item';
+            container.appendChild(separator);
+
+            const matchSection = document.createElement('div');
+            matchSection.className = 'text-center mb-6 league-item';
+            const homeTeamImg = getTeamImage(data.homeTeam);
+            const awayTeamImg = getTeamImage(data.awayTeam);
+            matchSection.innerHTML = `
+                <div class="flex items-center justify-center mb-6">
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full flex items-center justify-center mb-2">
+                            <img src="${homeTeamImg}" alt="${data.homeTeam}" class="w-20 h-20 rounded-full">
+                        </div>
+                        <span class="text-white font-bold text-sm">${cleanTeamName(data.homeTeam)}</span>
+                    </div>
+                    <div class="mx-8">
+                        <span class="text-gray-400 font-bold text-2xl">VS</span>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full flex items-center justify-center mb-2">
+                            <img src="${awayTeamImg}" alt="${data.awayTeam}" class="w-20 h-20 rounded-full">
+                        </div>
+                        <span class="text-white font-bold text-sm">${cleanTeamName(data.awayTeam)}</span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(matchSection);
+
+            const scoreSection = document.createElement('div');
+            scoreSection.className = 'text-center mb-6 league-item';
+            const homeScore = data.score?.home ?? '-';
+            const awayScore = data.score?.away ?? '-';
+            scoreSection.innerHTML = `
+                <div class="font-bold text-4xl" style="color: #F2E302;">${homeScore} - ${awayScore}</div>
+                <div class="text-white text-sm mt-2">${data.date} ${data.time}</div>
+            `;
+            container.appendChild(scoreSection);
+
+            if (data.goals && (data.goals[kocaeliSide].length > 0 || data.goals[opponentSide].length > 0)) {
+                const goalsSection = document.createElement('div');
+                goalsSection.className = 'mb-6 league-item px-4';
+                
+                const kocaeliGoals = data.goals[kocaeliSide].map(goal => 
+                    `<div class="text-white text-left"><span class="text-xl font-bold">${goal.minute}'</span> <span class="text-sm">${goal.player}</span></div>`
+                ).join('');
+                
+                const opponentGoals = data.goals[opponentSide].map(goal => 
+                    `<div class="text-white text-right"><span class="text-sm">${goal.player}</span> <span class="text-xl font-bold">${goal.minute}'</span></div>`
+                ).join('');
+                
+                goalsSection.innerHTML = `
+                    <div class="text-white font-bold text-lg mb-3 text-center">GOLLER</div>
+                    <div class="flex justify-between">
+                        <div class="flex-1 space-y-2">${kocaeliGoals}</div>
+                        <div class="flex-1 space-y-2">${opponentGoals}</div>
+                    </div>
+                `;
+                container.appendChild(goalsSection);
+            }
+
+            const statsSection = document.createElement('div');
+            statsSection.className = 'space-y-3 league-item px-4';
+            const halfTime = data.halfTime ? `${data.halfTime.home}-${data.halfTime.away}` : '-';
+            const yellowCards = `${data.yellowCount?.home || 0}-${data.yellowCount?.away || 0}`;
+            
+            statsSection.innerHTML = `
+                <div class="text-white font-bold text-lg mb-3 text-center">MAÇ BİLGİLERİ</div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">İlk Yarı:</span>
+                        <span class="text-white font-bold">${halfTime}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Sarı Kart:</span>
+                        <span class="text-white font-bold">${yellowCards}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Stad:</span>
+                        <span class="text-white font-bold text-xs">${data.stadium || '-'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Seyirci:</span>
+                        <span class="text-white font-bold">${data.attendance ? data.attendance.toLocaleString() : '-'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Hakem:</span>
+                        <span class="text-white font-bold text-xs">${data.referees?.[0]?.name || '-'}</span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(statsSection);
+        }
+
+        // Clock and Weather animations
+        function animateTimezone() {
+            const timezoneLabel = document.getElementById('timezone-label');
+            const clockTime = document.getElementById('clock-time');
+            
+            const timezoneData = [
+                { timezone: 'GMT', time: '12:45' },
+                { timezone: 'İSTANBUL', time: '15:45' }
+            ];
+            
+            let currentTimezoneIndex = 0;
+            
+            setInterval(function() {
+                timezoneLabel.classList.add('flipping');
+                clockTime.classList.add('flipping');
+                
+                setTimeout(function() {
+                    currentTimezoneIndex = (currentTimezoneIndex + 1) % timezoneData.length;
+                    timezoneLabel.textContent = timezoneData[currentTimezoneIndex].timezone;
+                    clockTime.textContent = timezoneData[currentTimezoneIndex].time;
+                    
+                    timezoneLabel.classList.remove('flipping');
+                    clockTime.classList.remove('flipping');
+                    
+                    timezoneLabel.classList.add('flip-animation');
+                    clockTime.classList.add('flip-animation');
+                    
+                    setTimeout(function() {
+                        timezoneLabel.classList.remove('flip-animation');
+                        clockTime.classList.remove('flip-animation');
+                    }, 800);
+                }, 300);
+            }, 4000);
+        }
+
+        function animateWeather() {
+            const weatherCity = document.getElementById('weather-city');
+            const weatherTemp = document.getElementById('weather-temp');
+            const weatherIcon = document.getElementById('weather-icon');
+            
+            const weatherData = [
+                { city: 'İSTANBUL', temp: '24°C', icon: '⛅' },
+                { city: 'KOCAELİ', temp: '22°C', icon: '☀️' }
+            ];
+            
+            let currentWeatherIndex = 0;
+            
+            setInterval(function() {
+                weatherCity.style.transition = 'opacity 0.5s ease';
+                weatherTemp.style.transition = 'opacity 0.5s ease';
+                weatherIcon.style.transition = 'opacity 0.5s ease';
+                weatherCity.style.opacity = '0';
+                weatherTemp.style.opacity = '0';
+                weatherIcon.style.opacity = '0';
+                
+                setTimeout(function() {
+                    currentWeatherIndex = (currentWeatherIndex + 1) % weatherData.length;
+                    weatherCity.textContent = weatherData[currentWeatherIndex].city;
+                    weatherTemp.textContent = weatherData[currentWeatherIndex].temp;
+                    weatherIcon.textContent = weatherData[currentWeatherIndex].icon;
+                    
+                    weatherCity.style.opacity = '1';
+                    weatherTemp.style.opacity = '1';
+                    weatherIcon.style.opacity = '1';
+                }, 500);
+            }, 6500);
+        }
+
+        // Initialize
+        window.addEventListener('load', function() {
+            showLeagueTable();
+            animateTimezone();
+            animateWeather();
+        });
+    </script>
+</body>
+</html>
